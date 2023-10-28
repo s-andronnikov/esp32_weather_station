@@ -54,13 +54,15 @@ void drawCurrentWeather();
 void drawForecast();
 void drawProgress(const char *text, int8_t percentage);
 void drawTimeAndDate(bool repaint);
+void drawTimeAndDateTask(void * parameter);
 String getWeatherIconName(uint16_t id, bool today);
 void initJpegDecoder();
 void initOpenFontRender();
 bool pushImageToTft(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap);
 void syncTime();
-void repaint();
+void repaint(void * parameter);
 void updateData(boolean updateProgressBar);
+bool repaintInProgress = true;
 
 
 // OneButton buttonOk(PIN_BUTTON_OK, false, false);
@@ -105,23 +107,41 @@ void setup(void) {
 
   initFileSystem();
   initOpenFontRender();
+
+  xTaskCreate(
+    repaint,          /* Task function. */
+    "repaintTask",        /* String with name of task. */
+    10000,            /* Stack size in bytes. */
+    NULL,             /* Parameter passed as input of the task */
+    10,                /* Priority of the task. */
+    NULL);
+
+  xTaskCreate(
+    drawTimeAndDateTask,          /* Task function. */
+    "drawTimeAndDateTask",        /* String with name of task. */
+    10000,            /* Stack size in bytes. */
+    NULL,             /* Parameter passed as input of the task */
+    1,                /* Priority of the task. */
+    NULL);
 }
 
 void loop(void) {
   // buttonOk.tick();
+
+  delay(10);
   
   // update if
   // - never (successfully) updated before OR
   // - last sync too far back
-  if (lastTimeSyncMillis == 0 ||
-      lastUpdateMillis == 0 ||
-      (millis() - lastUpdateMillis) > updateIntervalMillis) {
-    repaint();
-  } else {
-    drawTimeAndDate(false);
-  }
+  // if (lastTimeSyncMillis == 0 ||
+  //     lastUpdateMillis == 0 ||
+  //     (millis() - lastUpdateMillis) > updateIntervalMillis) {
+  //   repaint();
+  // } else {
+  //   drawTimeAndDate(false);
+  // }
 
-  delay(15 * 1000); // 30 sec to reload
+  // delay(15 * 1000); // 30 sec to reload
 
   // esp_sleep_enable_timer_wakeup(updateIntervalMillis * 1000); //usec
   // esp_deep_sleep_start();
@@ -261,6 +281,16 @@ void drawSeparator(uint16_t y) {
   tft.drawFastHLine(10, y, tft.width() - 2 * 15, 0x4228);
 }
 
+
+void drawTimeAndDateTask(void * pvParameters) {
+  for(;;){
+    if (!repaintInProgress) {
+      drawTimeAndDate(false);
+    }
+    vTaskDelay(30*1000/portTICK_PERIOD_MS);
+  }
+}
+
 void drawTimeAndDate(bool repaint) {
   String currTimeStr = getCurrentTimestamp(UI_TIME_FORMAT);
   if (repaint || !prevTimeStr || prevTimeStr != currTimeStr) {
@@ -364,37 +394,45 @@ void syncTime() {
   }
 }
 
-void repaint() {
-  tft.fillScreen(TFT_BLACK);
-  // ui.drawLogo();
+void repaint(void * parameter) {
+  for(;;){
+    repaintInProgress = true;
 
-  ofr.setFontSize(14);
-  // ofr.cdrawString(APP_NAME, centerWidth, tft.height() - 50);
-  // ofr.cdrawString(VERSION, centerWidth, tft.height() - 30);
+    tft.fillScreen(TFT_BLACK);
+    // ui.drawLogo();
 
-  drawProgress("Starting WiFi...", 10);
-  if (WiFi.status() != WL_CONNECTED) {
-    startWiFi();
+    ofr.setFontSize(14);
+    // ofr.cdrawString(APP_NAME, centerWidth, tft.height() - 50);
+    // ofr.cdrawString(VERSION, centerWidth, tft.height() - 30);
+
+    drawProgress("Starting WiFi...", 10);
+    if (WiFi.status() != WL_CONNECTED) {
+      startWiFi();
+    }
+
+    drawProgress("Synchronizing time...", 30);
+    syncTime();
+
+    updateData(true);
+
+    drawProgress("Ready", 100);
+    lastUpdateMillis = millis();
+
+    tft.fillScreen(TFT_BLACK);
+
+    drawCurrentWeather();
+    drawSeparator(120+currCondTop);
+
+    drawForecast();
+    drawSeparator(astroCondTop-5);
+
+    // drawAstro();
+    drawTimeAndDate(true);
+
+    repaintInProgress = false;
+
+    vTaskDelay(updateIntervalMillis/ portTICK_PERIOD_MS);
   }
-
-  drawProgress("Synchronizing time...", 30);
-  syncTime();
-
-  updateData(true);
-
-  drawProgress("Ready", 100);
-  lastUpdateMillis = millis();
-
-  tft.fillScreen(TFT_BLACK);
-
-  drawCurrentWeather();
-  drawSeparator(120+currCondTop);
-
-  drawForecast();
-  drawSeparator(astroCondTop-5);
-
-  // drawAstro();
-  drawTimeAndDate(true);
 }
 
 void updateData(boolean updateProgressBar) {
