@@ -13,7 +13,7 @@
 #include <OpenWeatherMapCurrent.h>
 #include <OpenWeatherMapForecast.h>
 #include <SunMoonCalc.h>
-// #include <OneButton.h>
+#include <OneButton.h>
 
 #include "connectivity.h"
 #include "display.h"
@@ -63,13 +63,23 @@ void syncTime();
 void repaint(void * parameter);
 void updateData(boolean updateProgressBar);
 bool repaintInProgress = true;
-
-
-// OneButton buttonOk(PIN_BUTTON_OK, false, false);
+OneButton buttonOk;
 
 // ----------------------------------------------------------------------------
 // setup() & loop()
 // ----------------------------------------------------------------------------
+
+static void handleOkClick() {
+  digitalWrite(PIN_LED1, HIGH);
+
+  // if (digitalRead(PIN_LED1) == LOW) {
+  //   digitalWrite(PIN_LED1, HIGH);
+  // } else {
+  //   digitalWrite(PIN_LED1, LOW);
+  // }
+}
+
+
 void setup(void) {
   #ifdef PIN_LED1
   pinMode(PIN_LED1, OUTPUT);
@@ -84,11 +94,24 @@ void setup(void) {
   Serial.println("Starting");
   delay(1000);
 
-  // buttonOk.attachClick([]() {
-  //   Serial.println("Click");
-  //   digitalWrite(PIN_LED1, HIGH);
-  //   repaint();
-  // });
+  pinMode(PIN_BUTTON_OK, INPUT_PULLUP);
+  OneButton buttonOk = OneButton(
+    PIN_BUTTON_OK,  // Input pin for the button
+    false,        // Button is active LOW
+    false         // Enable internal pull-up resistor
+  );
+
+  buttonOk.attachClick([]() {
+    drawAstro();
+    digitalWrite(PIN_LED1, HIGH);
+    digitalWrite(PIN_LED2, HIGH);
+
+    // if (digitalRead(PIN_LED1) == LOW) {
+    //   digitalWrite(PIN_LED1, HIGH);
+    // } else {
+    //   digitalWrite(PIN_LED1, LOW);
+    // }
+  });
 
 
   // buttonOk.attachLongPressStart ([]() {
@@ -126,9 +149,9 @@ void setup(void) {
 }
 
 void loop(void) {
-  // buttonOk.tick();
+  buttonOk.tick();
 
-  delay(10);
+  delay(20);
   
   // update if
   // - never (successfully) updated before OR
@@ -287,7 +310,7 @@ void drawTimeAndDateTask(void * pvParameters) {
     if (!repaintInProgress) {
       drawTimeAndDate(false);
     }
-    vTaskDelay(30*1000/portTICK_PERIOD_MS);
+    vTaskDelay(15*1000/portTICK_PERIOD_MS);
   }
 }
 

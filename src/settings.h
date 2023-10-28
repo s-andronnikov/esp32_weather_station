@@ -119,7 +119,7 @@ const uint8_t forecastHoursUtc[] = {0, 3, 6, 9, 12, 15, 18, 21};
 #define NUMBER_OF_FORECASTS 40
 #define NUMBER_OF_DAY_FORECASTS 4
 
-#define APP_NAME "ESP32 Weather Station Touch"
+#define APP_NAME "ESP32 Weather Station"
 #define VERSION "1.0.0"
 
-#define PIN_BUTTON_OK 0
+#define PIN_BUTTON_OK 5
