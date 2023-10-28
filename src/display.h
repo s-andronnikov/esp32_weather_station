@@ -20,17 +20,6 @@ void initTft(TFT_eSPI *tft) {
   // We need to swap the colour bytes (endianess)
   // -> https://github.com/Bodmer/TJpg_Decoder/blob/master/examples/LittleFS/LittleFS_Jpg/LittleFS_Jpg.ino#L60
   tft->setSwapBytes(true);
-
-  // Check for backlight pin if not connected to VCC
-#ifndef TFT_BL
-  log_i("No TFT backlight pin defined.");
-#else
-  log_d("Configuring TFT backlight at pin %d.", TFT_BL);
-  // Setup PWM channel, ledc is a LED Control Function
-  ledcSetup(0, 5000, 8);
-  ledcAttachPin(TFT_BL, 0);
-  ledcWrite(0, TFT_LED_BRIGHTNESS);
-#endif
   tft->fillScreen(TFT_BLACK);
 }
 

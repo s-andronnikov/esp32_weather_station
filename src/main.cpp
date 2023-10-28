@@ -64,6 +64,23 @@ void repaint(void * parameter);
 void updateData(boolean updateProgressBar);
 bool repaintInProgress = true;
 
+uint32_t currentBrightness;
+void setBrightness(uint32_t brightness);
+
+void setBrightness(uint32_t brightness)
+{
+  #ifdef TFT_BL
+    if (!currentBrightness) {
+      // Init brightness pin
+      ledcSetup(0, 5000, 8);
+      ledcAttachPin(TFT_BL, 0);
+    }  
+
+    currentBrightness = brightness;
+    ledcWrite(0, currentBrightness);
+  #endif
+}
+
 
 // OneButton buttonOk(PIN_BUTTON_OK, false, false);
 
@@ -102,6 +119,8 @@ void setup(void) {
   initJpegDecoder();
   // initTouchScreen(&ts);
   initTft(&tft);
+  setBrightness(TFT_LED_BRIGHTNESS);
+
   timeSprite.createSprite(timeSpritePos.width, timeSpritePos.height);
   // logDisplayDebugInfo(&tft);
 
