@@ -1,0 +1,1 @@
+for f in *.png ; do convert "$f" -gravity Center -crop '160x160+0+0' +repage -background black -alpha remove -flatten -alpha off -resize 50x50 -type truecolor "../../data/wind/${f%.png}.bmp" ; done
