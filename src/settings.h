@@ -71,6 +71,7 @@ typedef struct DayForecast {
 } DayForecast;
 
 RectangleDef timeSpritePos = {0, 0, 320, 88};
+RectangleDef lightSpritePos = {20, 95, 70, 20};
 
 const String WIND_ICON_NAMES[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
 

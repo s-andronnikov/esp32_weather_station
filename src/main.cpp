@@ -6,6 +6,9 @@
 #include <OpenFontRender.h>
 #include <TJpg_Decoder.h>
 
+#include <Wire.h>
+#include <BH1750.h>
+
 #include "fonts/open-sans.h"
 #include "GfxUi.h"
 
@@ -29,6 +32,7 @@ OpenFontRender ofr;
 FT6236 ts = FT6236(TFT_HEIGHT, TFT_WIDTH);
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite timeSprite = TFT_eSprite(&tft);
+TFT_eSprite lightSprite = TFT_eSprite(&tft);
 GfxUi ui = GfxUi(&tft, &ofr);
 
 // time management variables
@@ -63,9 +67,22 @@ void syncTime();
 void repaint(void * parameter);
 void updateData(boolean updateProgressBar);
 bool repaintInProgress = true;
+bool drawTimeAndDateInProgress = false;
+
+
+int listUpdateIntervalMillis =  3 * 1000;
+typedef struct lightSettings {
+  float minLight;
+  float maxLight;
+  uint32_t minBrightness;
+  uint32_t maxBrightness;
+  float stepSize;
+} lightSettings;
 
 uint32_t currentBrightness;
 void setBrightness(uint32_t brightness);
+uint32_t getBrightness(float lux);
+lightSettings lightConfig = {10, 1010, 10, 255, (1010-10)/(255-10)};
 
 void setBrightness(uint32_t brightness)
 {
@@ -79,6 +96,59 @@ void setBrightness(uint32_t brightness)
     currentBrightness = brightness;
     ledcWrite(0, currentBrightness);
   #endif
+}
+
+uint32_t getBrightness(float lux)
+{
+  if (lux <= lightConfig.minLight) {
+    return lightConfig.minBrightness;
+  }
+  if (lux >= lightConfig.maxLight) {
+    return lightConfig.maxBrightness;
+  }
+
+  return lightConfig.minBrightness + (lux-lightConfig.minLight)/lightConfig.stepSize;
+}
+
+
+BH1750 lightMeter;
+void lightReadTask(void * parameter);
+void drawLightInformation(float lux, uint32_t brightness);
+
+void lightReadTask(void * parameter) 
+{
+  while(1) {
+    if (!repaintInProgress && !drawTimeAndDateInProgress) {
+      float lux = lightMeter.readLightLevel();
+      if (lux > 40000.0) {
+        lightMeter.setMTreg(32);
+      } else if (lux > 10.0)
+      {
+        lightMeter.setMTreg(69);
+      } else if (lux <= 10.0)
+      {
+        lightMeter.setMTreg(138);
+      }
+
+      const uint32_t brightness = getBrightness(lux);
+      setBrightness(brightness);
+      drawLightInformation(lux, brightness);
+    }
+    vTaskDelay(listUpdateIntervalMillis/portTICK_PERIOD_MS);
+  }
+}
+
+void drawLightInformation(float lux, uint32_t brightness)
+{
+  lightSprite.fillSprite(TFT_BLACK);
+  ofr.setDrawer(lightSprite);
+
+  ofr.setFontSize(12);
+  String text = String(lux, 1) + "/"+String(brightness);
+  ofr.cdrawString(text.c_str(), lightSpritePos.width/2, 0);
+
+  lightSprite.pushSprite(lightSpritePos.x, lightSpritePos.y+currCondTop);
+  ofr.setDrawer(tft);
 }
 
 
@@ -122,7 +192,11 @@ void setup(void) {
   setBrightness(TFT_LED_BRIGHTNESS);
 
   timeSprite.createSprite(timeSpritePos.width, timeSpritePos.height);
+  lightSprite.createSprite(lightSpritePos.width, lightSpritePos.height);
   // logDisplayDebugInfo(&tft);
+
+  Wire.begin(PIN_SDA, PIN_SCL);
+  lightMeter.begin();
 
   initFileSystem();
   initOpenFontRender();
@@ -142,12 +216,20 @@ void setup(void) {
     NULL,             /* Parameter passed as input of the task */
     1,                /* Priority of the task. */
     NULL);
+
+  xTaskCreate(
+    lightReadTask,          /* Task function. */
+    "lightReadTask",        /* String with name of task. */
+    10000,            /* Stack size in bytes. */
+    NULL,             /* Parameter passed as input of the task */
+    5,                /* Priority of the task. */
+    NULL);
 }
 
 void loop(void) {
   // buttonOk.tick();
 
-  delay(10);
+  delay(1000);
   
   // update if
   // - never (successfully) updated before OR
@@ -313,6 +395,7 @@ void drawTimeAndDateTask(void * pvParameters) {
 void drawTimeAndDate(bool repaint) {
   String currTimeStr = getCurrentTimestamp(UI_TIME_FORMAT);
   if (repaint || !prevTimeStr || prevTimeStr != currTimeStr) {
+    drawTimeAndDateInProgress = true;
     timeSprite.fillSprite(TFT_BLACK);
     ofr.setDrawer(timeSprite);
 
@@ -333,7 +416,7 @@ void drawTimeAndDate(bool repaint) {
     timeSprite.pushSprite(timeSpritePos.x, timeSpritePos.y+astroCondTop);
     // set the drawer back since we temporarily changed it to the time sprite above
     ofr.setDrawer(tft);
-
+    drawTimeAndDateInProgress = false;
     prevTimeStr = currTimeStr;
   }
 }
