@@ -70,7 +70,8 @@ typedef struct DayForecast {
   int day;
 } DayForecast;
 
-RectangleDef timeSpritePos = {0, 0, 320, 88};
+RectangleDef timeSpritePos = {0, 0, 240, 88};
+RectangleDef timeLargeSpritePos = {30, 0, 180, 320};
 RectangleDef lightSpritePos = {10, 95, 70, 20};
 
 const String WIND_ICON_NAMES[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
@@ -124,3 +125,6 @@ const uint8_t forecastHoursUtc[] = {0, 3, 6, 9, 12, 15, 18, 21};
 #define VERSION "1.0.0"
 
 #define PIN_BUTTON_OK 0
+
+#define PAGE_WEATHER 0
+#define PAGE_CLOCK 1;

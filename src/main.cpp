@@ -33,12 +33,15 @@ FT6236 ts = FT6236(TFT_HEIGHT, TFT_WIDTH);
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite timeSprite = TFT_eSprite(&tft);
 TFT_eSprite lightSprite = TFT_eSprite(&tft);
+TFT_eSprite timeLargeSprite = TFT_eSprite(&tft);
 GfxUi ui = GfxUi(&tft, &ofr);
 
 // time management variables
 int updateIntervalMillis = UPDATE_INTERVAL_MINUTES * 60 * 1000;
+int updateTimeIntervalMillis = 15 * 1000;
 unsigned long lastTimeSyncMillis = 0;
 unsigned long lastUpdateMillis = 0;
+unsigned long lastTimeDrawClockMillis = 0;
 
 const int16_t centerWidth = tft.width() / 2;
 int16_t currCondTop = 0;
@@ -49,6 +52,15 @@ String prevTimeStr;
 
 OpenWeatherMapCurrentData currentWeather;
 OpenWeatherMapForecastData forecasts[NUMBER_OF_FORECASTS];
+
+String prevHours;
+String prevDate;
+
+FT_BBox bbox_minutes = {36, 150, 176, 130};
+FT_BBox bbox_hours = {36, 0, 176, 130};
+FT_BBox bbox_date = {36, 290, 176, 40};
+
+FT_Error ft_error;
 
 // ----------------------------------------------------------------------------
 // Function prototypes (declarations)
@@ -64,10 +76,16 @@ void initJpegDecoder();
 void initOpenFontRender();
 bool pushImageToTft(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap);
 void syncTime();
-void repaint(void * parameter);
+void repaint();
+void repaintTask(void * parameter);
 void updateData(boolean updateProgressBar);
+void drawLargeClock();
+void initConnection(boolean firstTime);
+
 bool repaintInProgress = true;
 bool drawTimeAndDateInProgress = false;
+
+int activePage = PAGE_CLOCK;
 
 
 int listUpdateIntervalMillis =  3 * 1000;
@@ -118,7 +136,7 @@ void drawLightInformation(float lux, uint32_t brightness);
 void lightReadTask(void * parameter) 
 {
   while(1) {
-    if (!repaintInProgress && !drawTimeAndDateInProgress) {
+    // if (!repaintInProgress && !drawTimeAndDateInProgress) {
       float lux = lightMeter.readLightLevel();
       if (lux > 40000.0) {
         lightMeter.setMTreg(32);
@@ -132,8 +150,8 @@ void lightReadTask(void * parameter)
 
       const uint32_t brightness = getBrightness(lux);
       setBrightness(brightness);
-      drawLightInformation(lux, brightness);
-    }
+      // drawLightInformation(lux, brightness);
+    // }
     vTaskDelay(listUpdateIntervalMillis/portTICK_PERIOD_MS);
   }
 }
@@ -190,9 +208,10 @@ void setup(void) {
   // initTouchScreen(&ts);
   initTft(&tft);
   setBrightness(TFT_LED_BRIGHTNESS);
+  tft.fillScreen(TFT_BLACK);
 
-  timeSprite.createSprite(timeSpritePos.width, timeSpritePos.height);
-  lightSprite.createSprite(lightSpritePos.width, lightSpritePos.height);
+  // timeSprite.createSprite(timeSpritePos.width, timeSpritePos.height);
+  // lightSprite.createSprite(lightSpritePos.width, lightSpritePos.height);
   // logDisplayDebugInfo(&tft);
 
   Wire.begin(PIN_SDA, PIN_SCL);
@@ -201,21 +220,21 @@ void setup(void) {
   initFileSystem();
   initOpenFontRender();
 
-  xTaskCreate(
-    repaint,          /* Task function. */
-    "repaintTask",        /* String with name of task. */
-    10000,            /* Stack size in bytes. */
-    NULL,             /* Parameter passed as input of the task */
-    10,                /* Priority of the task. */
-    NULL);
+  // xTaskCreate(
+  //   repaintTask,          /* Task function. */
+  //   "repaintTask",        /* String with name of task. */
+  //   10000,            /* Stack size in bytes. */
+  //   NULL,             /* Parameter passed as input of the task */
+  //   10,                /* Priority of the task. */
+  //   NULL);
 
-  xTaskCreate(
-    drawTimeAndDateTask,          /* Task function. */
-    "drawTimeAndDateTask",        /* String with name of task. */
-    10000,            /* Stack size in bytes. */
-    NULL,             /* Parameter passed as input of the task */
-    1,                /* Priority of the task. */
-    NULL);
+  // xTaskCreate(
+  //   drawTimeAndDateTask,          /* Task function. */
+  //   "drawTimeAndDateTask",        /* String with name of task. */
+  //   10000,            /* Stack size in bytes. */
+  //   NULL,             /* Parameter passed as input of the task */
+  //   1,                /* Priority of the task. */
+  //   NULL);
 
   xTaskCreate(
     lightReadTask,          /* Task function. */
@@ -224,25 +243,38 @@ void setup(void) {
     NULL,             /* Parameter passed as input of the task */
     5,                /* Priority of the task. */
     NULL);
+
+  initConnection(false);
 }
 
 void loop(void) {
   // buttonOk.tick();
 
-  delay(1000);
+  // delay(1000);
   
   // update if
   // - never (successfully) updated before OR
   // - last sync too far back
-  // if (lastTimeSyncMillis == 0 ||
-  //     lastUpdateMillis == 0 ||
-  //     (millis() - lastUpdateMillis) > updateIntervalMillis) {
-  //   repaint();
-  // } else {
-  //   drawTimeAndDate(false);
-  // }
+  if (lastUpdateMillis == 0 || (millis() - lastUpdateMillis) > updateIntervalMillis) {
+    initConnection(false);
+    if (activePage == PAGE_WEATHER) {
+      repaint();
+    }
 
-  // delay(15 * 1000); // 30 sec to reload
+    lastUpdateMillis = millis();
+  } else 
+  // if (lastTimeDrawClockMillis == 0 || (millis() - lastTimeDrawClockMillis) > updateTimeIntervalMillis)
+   {
+    if (activePage == PAGE_WEATHER) {
+      drawTimeAndDate(false);
+    } else {
+      drawLargeClock();
+    }
+    lastTimeDrawClockMillis = millis();
+  }
+  // drawLargeClock();
+
+  delay(1000); // 30 sec to reload
 
   // esp_sleep_enable_timer_wakeup(updateIntervalMillis * 1000); //usec
   // esp_deep_sleep_start();
@@ -383,6 +415,56 @@ void drawSeparator(uint16_t y) {
 }
 
 
+void drawLargeClock()
+{
+  String currTimeStr = getCurrentTimestamp(UI_TIME_FORMAT);
+
+  Serial.println(prevTimeStr);
+  Serial.println(currTimeStr);
+
+  if (!prevTimeStr || prevTimeStr != currTimeStr) {
+    drawTimeAndDateInProgress = true;
+    // timeLargeSprite.createSprite(timeLargeSpritePos.width, timeLargeSpritePos.height);
+
+    // timeLargeSprite.fillSprite(TFT_BLACK);
+    // ofr.setDrawer(timeLargeSprite);
+
+    int32_t timeLargeSpriteCenterWidth = timeLargeSpritePos.width/2;
+
+    // Hours
+    String hours = getCurrentTimestamp("%H");
+    if (prevHours != hours){
+      ofr.setFontSize(160);
+      tft.fillRect(bbox_hours.xMin, bbox_hours.yMin, bbox_hours.xMax, bbox_hours.yMax, TFT_BLACK);
+      ofr.cdrawString(hours.c_str(), timeLargeSpriteCenterWidth+30, -48);
+      prevHours = hours;
+    }
+
+    // Minutes
+    String minutes = getCurrentTimestamp("%M");
+    ofr.setFontSize(160);
+    tft.fillRect(bbox_minutes.xMin, bbox_minutes.yMin, bbox_minutes.xMax, bbox_minutes.yMax, TFT_BLACK);
+    ofr.cdrawString(minutes.c_str(), timeLargeSpriteCenterWidth+30, (timeLargeSpritePos.height/2 - 58));
+
+    // Date
+    String date = WEEKDAYS[getCurrentWeekday()] + ", " + getCurrentTimestamp(UI_DATE_FORMAT);
+    if (prevDate != date) {
+      ofr.setFontSize(14);
+      tft.fillRect(bbox_date.xMin, bbox_date.yMin, bbox_date.xMax, bbox_date.yMax, TFT_BLACK);
+      ofr.cdrawString(date.c_str(), timeLargeSpriteCenterWidth + 30, timeLargeSpritePos.height - 25);
+      prevDate = date;
+    }
+
+    // timeLargeSprite.pushSprite(timeLargeSpritePos.x, timeLargeSpritePos.y);
+    // timeLargeSprite.deleteSprite();
+    // set the drawer back since we temporarily changed it to the time sprite above
+    // ofr.setDrawer(tft);
+    drawTimeAndDateInProgress = false;
+    prevTimeStr = currTimeStr;
+  }
+}
+
+
 void drawTimeAndDateTask(void * pvParameters) {
   for(;;){
     if (!repaintInProgress) {
@@ -496,29 +578,50 @@ void syncTime() {
   }
 }
 
-void repaint(void * parameter) {
+void repaintTask(void * pvParameters) {
   for(;;){
-    repaintInProgress = true;
+    repaint();
+    vTaskDelay(updateIntervalMillis/ portTICK_PERIOD_MS);
+  }
+}
 
-    tft.fillScreen(TFT_BLACK);
-    // ui.drawLogo();
-
-    ofr.setFontSize(14);
-    // ofr.cdrawString(APP_NAME, centerWidth, tft.height() - 50);
-    // ofr.cdrawString(VERSION, centerWidth, tft.height() - 30);
-
-    drawProgress("Starting WiFi...", 10);
+void initConnection(boolean firstTime)
+{
     if (WiFi.status() != WL_CONNECTED) {
       startWiFi();
     }
-
-    drawProgress("Synchronizing time...", 30);
     syncTime();
 
-    updateData(true);
 
-    drawProgress("Ready", 100);
-    lastUpdateMillis = millis();
+    // if (firstTime) {
+    //   repaintInProgress = true;
+
+    //   tft.fillScreen(TFT_BLACK);
+    //   ofr.setFontSize(14);
+    //   drawProgress("Starting WiFi...", 10);
+    // }
+
+    // if (WiFi.status() != WL_CONNECTED) {
+    //   startWiFi();
+    // }
+
+    // if (firstTime) {
+    //   drawProgress("Synchronizing time...", 30);
+    // }
+    // syncTime();
+
+    // if (firstTime) {
+    //   drawProgress("Ready", 100);
+    //   tft.fillScreen(TFT_BLACK);
+    //   repaintInProgress = false;
+    // }
+}
+
+
+void repaint() {
+    repaintInProgress = true;
+    
+    updateData(true);
 
     tft.fillScreen(TFT_BLACK);
 
@@ -532,9 +635,6 @@ void repaint(void * parameter) {
     drawTimeAndDate(true);
 
     repaintInProgress = false;
-
-    vTaskDelay(updateIntervalMillis/ portTICK_PERIOD_MS);
-  }
 }
 
 void updateData(boolean updateProgressBar) {
