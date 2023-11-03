@@ -56,9 +56,11 @@ OpenWeatherMapForecastData forecasts[NUMBER_OF_FORECASTS];
 String prevHours;
 String prevDate;
 
-FT_BBox bbox_minutes = {36, 150, 176, 130};
-FT_BBox bbox_hours = {36, 0, 176, 130};
-FT_BBox bbox_date = {36, 290, 176, 40};
+uint32_t prevBrightness;
+
+FT_BBox bbox_minutes = {34, 150, 176, 130};
+FT_BBox bbox_hours = {34, 0, 176, 130};
+FT_BBox bbox_date = {34, 290, 176, 40};
 
 FT_Error ft_error;
 
@@ -85,7 +87,7 @@ void initConnection(boolean firstTime);
 bool repaintInProgress = true;
 bool drawTimeAndDateInProgress = false;
 
-int activePage = PAGE_CLOCK;
+int activePage = PAGE_WEATHER;
 
 
 int listUpdateIntervalMillis =  3 * 1000;
@@ -131,7 +133,7 @@ uint32_t getBrightness(float lux)
 
 BH1750 lightMeter;
 void lightReadTask(void * parameter);
-void drawLightInformation(float lux, uint32_t brightness);
+void drawLightInformation(uint32_t brightness);
 
 void lightReadTask(void * parameter) 
 {
@@ -149,24 +151,24 @@ void lightReadTask(void * parameter)
       }
 
       const uint32_t brightness = getBrightness(lux);
-      setBrightness(brightness);
-      // drawLightInformation(lux, brightness);
+      if (currentBrightness != brightness) {
+        setBrightness(brightness);
+        drawLightInformation(brightness);
+      }
     // }
     vTaskDelay(listUpdateIntervalMillis/portTICK_PERIOD_MS);
   }
 }
 
-void drawLightInformation(float lux, uint32_t brightness)
+void drawLightInformation(uint32_t brightness)
 {
-  lightSprite.fillSprite(TFT_BLACK);
-  ofr.setDrawer(lightSprite);
-
-  ofr.setFontSize(12);
-  String text = String(lux, 1) + "/"+String(brightness);
-  ofr.cdrawString(text.c_str(), lightSpritePos.width/2, 0);
-
-  lightSprite.pushSprite(lightSpritePos.x, lightSpritePos.y+currCondTop);
-  ofr.setDrawer(tft);
+  if (activePage == PAGE_WEATHER) {
+    ofr.setFontSize(12);
+    String text = "BR: "+String(brightness*100/255) + "%";
+    
+    tft.fillRect(lightSpritePos.x, lightSpritePos.y, lightSpritePos.width, lightSpritePos.height, TFT_BLACK);
+    ofr.cdrawString(text.c_str(),  + lightSpritePos.x + lightSpritePos.width/2, lightSpritePos.y);
+  }
 }
 
 
@@ -210,7 +212,7 @@ void setup(void) {
   setBrightness(TFT_LED_BRIGHTNESS);
   tft.fillScreen(TFT_BLACK);
 
-  // timeSprite.createSprite(timeSpritePos.width, timeSpritePos.height);
+  timeSprite.createSprite(timeSpritePos.width, timeSpritePos.height);
   // lightSprite.createSprite(lightSpritePos.width, lightSpritePos.height);
   // logDisplayDebugInfo(&tft);
 
@@ -251,7 +253,17 @@ void loop(void) {
   // buttonOk.tick();
 
   // delay(1000);
-  
+  const int currentHours = getCurrentTimestamp("%H").toInt();
+  if (currentHours >= 22 || currentHours <= 10) {
+      if (activePage == PAGE_WEATHER) {
+        tft.fillScreen(TFT_BLACK);
+        activePage = PAGE_CLOCK;
+      }
+  } else if (activePage != PAGE_WEATHER) {
+    tft.fillScreen(TFT_BLACK);
+    activePage = PAGE_WEATHER;
+  }
+
   // update if
   // - never (successfully) updated before OR
   // - last sync too far back
@@ -436,7 +448,7 @@ void drawLargeClock()
     if (prevHours != hours){
       ofr.setFontSize(160);
       tft.fillRect(bbox_hours.xMin, bbox_hours.yMin, bbox_hours.xMax, bbox_hours.yMax, TFT_BLACK);
-      ofr.cdrawString(hours.c_str(), timeLargeSpriteCenterWidth+30, -48);
+      ofr.cdrawString(hours.c_str(), timeLargeSpriteCenterWidth+30, -45);
       prevHours = hours;
     }
 
@@ -633,6 +645,8 @@ void repaint() {
 
     // drawAstro();
     drawTimeAndDate(true);
+
+    drawLightInformation(currentBrightness);
 
     repaintInProgress = false;
 }
