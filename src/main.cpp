@@ -6,8 +6,10 @@
 #include <OpenFontRender.h>
 #include <TJpg_Decoder.h>
 
+#ifdef BH1750
 #include <Wire.h>
 #include <BH1750.h>
+#endif
 
 #include "fonts/open-sans.h"
 #include "GfxUi.h"
@@ -131,10 +133,10 @@ uint32_t getBrightness(float lux)
 }
 
 
+void drawLightInformation(uint32_t brightness);
+#ifdef BH1750
 BH1750 lightMeter;
 void lightReadTask(void * parameter);
-void drawLightInformation(uint32_t brightness);
-
 void lightReadTask(void * parameter) 
 {
   while(1) {
@@ -159,6 +161,7 @@ void lightReadTask(void * parameter)
     vTaskDelay(listUpdateIntervalMillis/portTICK_PERIOD_MS);
   }
 }
+#endif
 
 void drawLightInformation(uint32_t brightness)
 {
@@ -216,8 +219,10 @@ void setup(void) {
   // lightSprite.createSprite(lightSpritePos.width, lightSpritePos.height);
   // logDisplayDebugInfo(&tft);
 
+  #ifdef BH1750
   Wire.begin(PIN_SDA, PIN_SCL);
   lightMeter.begin();
+  #endif
 
   initFileSystem();
   initOpenFontRender();
@@ -238,6 +243,8 @@ void setup(void) {
   //   1,                /* Priority of the task. */
   //   NULL);
 
+
+  #ifdef BH1750
   xTaskCreate(
     lightReadTask,          /* Task function. */
     "lightReadTask",        /* String with name of task. */
@@ -245,6 +252,7 @@ void setup(void) {
     NULL,             /* Parameter passed as input of the task */
     5,                /* Priority of the task. */
     NULL);
+  #endif
 
   initConnection(false);
 }
@@ -254,7 +262,7 @@ void loop(void) {
 
   // delay(1000);
   const int currentHours = getCurrentTimestamp("%H").toInt();
-  if (currentHours >= 22 || currentHours <= 10) {
+  if (currentHours >= 21 || currentHours <= 10) {
       if (activePage == PAGE_WEATHER) {
         tft.fillScreen(TFT_BLACK);
         activePage = PAGE_CLOCK;

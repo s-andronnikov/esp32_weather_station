@@ -7,8 +7,8 @@
 // User settings
 // ****************************************************************************
 // WiFi
-const char *SSID = "NETGEAR29";
-const char *WIFI_PWD = "purpleplum557";
+const char *SSID = "WNET";
+const char *WIFI_PWD = "8r1i_hapx_7nt7";
 
 // timezone Europe/Zurich as per https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "EET-2EEST,M3.5.0/3,M10.5.0/4"
