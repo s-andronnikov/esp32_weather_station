@@ -134,9 +134,39 @@ uint32_t getBrightness(float lux)
 
 
 void drawLightInformation(uint32_t brightness);
-#ifdef BH1750
-BH1750 lightMeter;
 void lightReadTask(void * parameter);
+
+
+#if defined CDS_PIN
+void lightReadTask(void * parameter) 
+{
+  while(1) {
+    // if (!repaintInProgress && !drawTimeAndDateInProgress) {
+      uint8_t lux = analogReadMilliVolts(CDS_PIN); // Darken the room: 230mVdc. Make it brighter; 75mVdc
+
+      // if (lux > 40000.0) {
+      //   lightMeter.setMTreg(32);
+      // } else if (lux > 10.0)
+      // {
+      //   lightMeter.setMTreg(69);
+      // } else if (lux <= 10.0)
+      // {
+      //   lightMeter.setMTreg(138);
+      // }
+      Serial.println(lux);
+      // Serial.printf("%d\n", lux);
+
+      // const uint32_t brightness = getBrightness(lux);
+      // if (currentBrightness != brightness) {
+      //   setBrightness(brightness);
+      //   drawLightInformation(brightness);
+      // }
+    // }
+    vTaskDelay(listUpdateIntervalMillis/portTICK_PERIOD_MS);
+  }
+}
+#elif defined BH1750
+BH1750 lightMeter;
 void lightReadTask(void * parameter) 
 {
   while(1) {
@@ -161,6 +191,10 @@ void lightReadTask(void * parameter)
     vTaskDelay(listUpdateIntervalMillis/portTICK_PERIOD_MS);
   }
 }
+#else
+void lightReadTask(void * parameter) {
+  return;
+}
 #endif
 
 void drawLightInformation(uint32_t brightness)
@@ -183,11 +217,15 @@ void drawLightInformation(uint32_t brightness)
 void setup(void) {
   #ifdef PIN_LED1
   pinMode(PIN_LED1, OUTPUT);
-  digitalWrite(PIN_LED1, LOW);
+  digitalWrite(PIN_LED1, PIN_LED_STATE);
   #endif
   #ifdef PIN_LED2
   pinMode(PIN_LED2, OUTPUT);
-  digitalWrite(PIN_LED2, LOW);
+  digitalWrite(PIN_LED2, PIN_LED_STATE);
+  #endif
+  #ifdef PIN_LED3
+  pinMode(PIN_LED3, OUTPUT);
+  digitalWrite(PIN_LED3, PIN_LED_STATE);
   #endif
 
   Serial.begin(115200);
@@ -224,6 +262,12 @@ void setup(void) {
   lightMeter.begin();
   #endif
 
+  #ifdef CDS_PIN
+  // Setup CDS Light sensor
+  analogSetPinAttenuation(CDS_PIN, ADC_0db); // 0dB(1.0x) 0~800mV
+  pinMode(CDS_PIN, ANALOG);
+  #endif
+
   initFileSystem();
   initOpenFontRender();
 
@@ -243,16 +287,13 @@ void setup(void) {
   //   1,                /* Priority of the task. */
   //   NULL);
 
-
-  #ifdef BH1750
   xTaskCreate(
     lightReadTask,          /* Task function. */
     "lightReadTask",        /* String with name of task. */
-    10000,            /* Stack size in bytes. */
+    1024,            /* Stack size in bytes. */
     NULL,             /* Parameter passed as input of the task */
     5,                /* Priority of the task. */
     NULL);
-  #endif
 
   initConnection(false);
 }
