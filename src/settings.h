@@ -7,8 +7,17 @@
 // User settings
 // ****************************************************************************
 // WiFi
-const char *SSID = "WNET";
-const char *WIFI_PWD = "8r1i_hapx_7nt7";
+#ifdef WIFI_SSID
+const char *SSID = WIFI_SSID;
+#else
+const char *SSID = "NETGEAR29";
+#endif
+
+#ifdef WIFI_PWD
+const char *WIFI_PWD = WIFI_PWD;
+#else
+const char *WIFI_PWD = "purpleplum557";
+#endif
 
 // timezone Europe/Zurich as per https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 #define TIMEZONE "EET-2EEST,M3.5.0/3,M10.5.0/4"
@@ -82,7 +91,9 @@ const uint8_t NUMBER_OF_MOON_IMAGES = 32;
 
 // 2: portrait, on/off switch right side -> 0/0 top left
 // 3: landscape, on/off switch at the top -> 0/0 top left
+#ifndef TFT_ROTATION
 #define TFT_ROTATION 2
+#elif
 // all other TFT_xyz flags are defined in platformio.ini as PIO build flags
 
 // 0: portrait, on/off switch right side -> 0/0 top left

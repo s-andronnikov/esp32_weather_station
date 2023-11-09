@@ -6,7 +6,7 @@
 #include <OpenFontRender.h>
 #include <TJpg_Decoder.h>
 
-#ifdef BH1750
+#ifdef BH1750_EN
 #include <Wire.h>
 #include <BH1750.h>
 #endif
@@ -132,7 +132,6 @@ uint32_t getBrightness(float lux)
   return lightConfig.minBrightness + (lux-lightConfig.minLight)/lightConfig.stepSize;
 }
 
-
 void drawLightInformation(uint32_t brightness);
 void lightReadTask(void * parameter);
 
@@ -165,7 +164,7 @@ void lightReadTask(void * parameter)
     vTaskDelay(listUpdateIntervalMillis/portTICK_PERIOD_MS);
   }
 }
-#elif defined BH1750
+#elif defined BH1750_EN
 BH1750 lightMeter;
 void lightReadTask(void * parameter) 
 {
@@ -257,7 +256,7 @@ void setup(void) {
   // lightSprite.createSprite(lightSpritePos.width, lightSpritePos.height);
   // logDisplayDebugInfo(&tft);
 
-  #ifdef BH1750
+  #ifdef BH1750_EN
   Wire.begin(PIN_SDA, PIN_SCL);
   lightMeter.begin();
   #endif
