@@ -289,7 +289,7 @@ void setup(void) {
   xTaskCreate(
     lightReadTask,          /* Task function. */
     "lightReadTask",        /* String with name of task. */
-    1024,            /* Stack size in bytes. */
+    4096,              /* Stack size in bytes. */
     NULL,             /* Parameter passed as input of the task */
     5,                /* Priority of the task. */
     NULL);

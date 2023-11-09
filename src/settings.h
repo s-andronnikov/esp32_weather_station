@@ -93,7 +93,7 @@ const uint8_t NUMBER_OF_MOON_IMAGES = 32;
 // 3: landscape, on/off switch at the top -> 0/0 top left
 #ifndef TFT_ROTATION
 #define TFT_ROTATION 2
-#elif
+#endif
 // all other TFT_xyz flags are defined in platformio.ini as PIO build flags
 
 // 0: portrait, on/off switch right side -> 0/0 top left
